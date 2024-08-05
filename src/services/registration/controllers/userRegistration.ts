@@ -6,7 +6,11 @@ import {
   verifyToken,
   otpauthURL,
 } from "../services/otpService";
-import { hashPassword, verifyPassword } from "../utils/bcryptUtils";
+import {
+  hashPassword,
+  verifyPassword,
+  comparePasswords,
+} from "../utils/bcryptUtils";
 import QRCode from "qrcode";
 
 export const registerUser = async (
@@ -154,5 +158,40 @@ export const verifyOTP = async (
   } catch (err) {
     console.error("Error verifying OTP:", err);
     return res.status(500).send("Error verifying OTP");
+  }
+};
+
+export const updatePassword = async (req: Request, res: Response) => {
+  const { email, currentPassword, newPassword, otp } = req.body;
+
+  const user = await db.User.findOne({ where: { email } });
+
+  if (!user) {
+    return res.status(404).send("User not found");
+  }
+
+  // Verify current password
+  const isMatch = await comparePasswords(currentPassword, user.password);
+
+  if (!isMatch) {
+    return res.status(400).send("Current password is incorrect");
+  }
+
+  // Verify OTP
+  const isTokenValid = verifyToken(user.secret, otp);
+
+  if (!isTokenValid) {
+    return res.status(400).send("Invalid token");
+  }
+
+  // Hash new password
+  const hashedPassword = await hashPassword(newPassword);
+
+  try {
+    user.password = hashedPassword;
+    await user.save();
+    res.send("Password updated successfully");
+  } catch (err) {
+    res.status(500).send("Error updating password");
   }
 };
