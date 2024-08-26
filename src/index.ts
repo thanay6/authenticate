@@ -32,13 +32,6 @@ app.get("/", (req, res) => {
   res.send("Home Page");
 });
 
-app.get("/profile", (req, res) => {
-  if (!req.isAuthenticated || !req.isAuthenticated()) {
-    return res.status(401).send("You are not authenticated");
-  }
-  res.send(`Hello, ${(req.user as any).username}`);
-});
-
 // Sync the database and start the server
 app.listen(PORT, () => {
   console.log(`server connected to ${PORT}`);

@@ -12,6 +12,7 @@ import {
   comparePasswords,
 } from "../utils/bcryptUtils";
 import QRCode from "qrcode";
+import jwt from "jsonwebtoken";
 
 export const registerUser = async (
   req: Request,
@@ -35,7 +36,6 @@ export const registerUser = async (
 
     // Create a new user
     const user = await db.User.create({
-      id: uuidv4(),
       username,
       email,
       password: hashedPassword,
@@ -64,10 +64,17 @@ export const getQRCode = async (
     // Extract email from the request body
     const { email } = req.body;
 
+    // Validate email format
+    if (typeof email !== "string" || !email.includes("@")) {
+      return res.status(400).json({
+        message: "Invalid email format",
+      });
+    }
+
     // Find the user by email
     const user = await db.User.findOne({ where: { email } });
     if (!user) {
-      return res.status(400).json({
+      return res.status(404).json({
         message: "Email does not exist",
       });
     }
@@ -77,25 +84,52 @@ export const getQRCode = async (
     const dataUrl = await QRCode.toDataURL(otpauthUrl);
 
     // Send the QR code image as HTML
-    return res.send(`<img src="${dataUrl}" alt="QR Code">`);
+    return res.status(200).send(`<img src="${dataUrl}" alt="QR Code">`);
   } catch (err) {
     console.error("Failed to generate QR code:", err);
-    return res.status(500).send("Failed to generate QR code");
+    return res.status(500).json({
+      message: "Failed to generate QR code",
+      error: (err as Error).message ?? "Unknown error occurred",
+    });
   }
 };
+// export const getQRCode = async (
+//   req: Request,
+//   res: Response
+// ): Promise<Response> => {
+//   try {
+//     // Extract email from the request body
+//     const { email } = req.body;
+
+//     // Find the user by email
+//     const user = await db.User.findOne({ where: { email } });
+//     if (!user) {
+//       return res.status(400).json({
+//         message: "Email does not exist",
+//       });
+//     }
+
+//     // Generate the QR code
+//     const otpauthUrl = otpauthURL(user.secret, email);
+//     const dataUrl = await QRCode.toDataURL(otpauthUrl);
+
+//     // Send the QR code image as HTML
+//     return res.send(`<img src="${dataUrl}" alt="QR Code">`);
+//   } catch (err) {
+//     console.error("Failed to generate QR code:", err);
+//     return res.status(500).send("Failed to generate QR code");
+//   }
+// };
 
 export const loginUser = async (
   req: Request,
   res: Response
 ): Promise<Response> => {
   try {
-    const { email, password, otp } = req.body;
+    const { email, password } = req.body;
 
-    if (
-      typeof email !== "string" ||
-      typeof password !== "string" ||
-      typeof otp !== "string"
-    ) {
+    // Validate input types
+    if (typeof email !== "string" || typeof password !== "string") {
       return res.status(400).json({ message: "Invalid input" });
     }
 
@@ -111,14 +145,23 @@ export const loginUser = async (
       return res.status(400).json({ message: "Invalid password" });
     }
 
-    // Verify OTP
-    const isOtpValid = verifyToken(user.secret, otp);
-    if (!isOtpValid) {
-      return res.status(400).json({ message: "Invalid OTP" });
-    }
+    // Generate a JWT token
+    const token = jwt.sign({ email }, process.env.JWT_SECRET as string, {
+      expiresIn: "1d",
+    });
 
-    return res.status(200).json({ message: "Login successful" });
+    // Send a single response
+    return res.status(200).json({
+      message: "Login successful",
+      user: {
+        id: user.id,
+        email: user.email,
+      },
+      token,
+    });
   } catch (error) {
+    // Handle errors
+    console.error("Login error:", error); // Logging error for debugging
     return res.status(500).json({
       message: "An error occurred during login",
       error: (error as Error).message ?? "Unknown error occurred",
@@ -148,11 +191,15 @@ export const verifyOTP = async (
     // Verify the OTP token using the user's secret
     const isVerified = verifyToken(user.secret, token);
 
+    // console.log(user.secret);
+
     if (isVerified) {
       return res
         .status(200)
         .json({ message: "2FA verified successfully", startStatus: "started" });
     } else {
+      // console.log(token);
+
       return res.status(400).send("Invalid token");
     }
   } catch (err) {

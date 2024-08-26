@@ -2,7 +2,7 @@ import { DataTypes, Model, Optional, Sequelize } from "sequelize";
 
 // Define the attributes for the User model
 interface UserAttributes {
-  id?: string;
+  id?: number; // Changed to number
   username: string;
   email: string;
   password: string;
@@ -21,7 +21,7 @@ class User
   extends Model<UserAttributes, UserCreationAttributes>
   implements UserAttributes
 {
-  public id!: string;
+  public id!: number; // Changed to number
   public username!: string;
   public email!: string;
   public password!: string;
@@ -35,8 +35,9 @@ const UserModel = (sequelize: Sequelize): typeof User => {
   const user = User.init(
     {
       id: {
-        type: DataTypes.STRING(128),
+        type: DataTypes.INTEGER, // Changed to INTEGER
         primaryKey: true,
+        autoIncrement: true, // Auto-increment
       },
       username: {
         type: DataTypes.STRING(128),
@@ -52,7 +53,7 @@ const UserModel = (sequelize: Sequelize): typeof User => {
         allowNull: true,
       },
       secret: {
-        type: new DataTypes.STRING(128),
+        type: DataTypes.STRING(128),
         allowNull: false,
       },
     },
